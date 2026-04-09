@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skies — Clima en tiempo real</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0b0e14; --surface: #13171f; --border: rgba(255,255,255,0.07);
+      --text: #e8eaf0; --muted: #6b7280; --accent: #7dd3fc; --danger: #f87171;
+      --radius: 16px;
+    }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-size: 14px; }
+    body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(ellipse 60% 40% at 20% 10%, rgba(125,211,252,0.07) 0%, transparent 60%), radial-gradient(ellipse 40% 50% at 80% 80%, rgba(167,139,250,0.06) 0%, transparent 60%); pointer-events: none; z-index: 0; }
+    .app { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding: 48px 24px 80px; gap: 24px; }
+    header { text-align: center; }
+    header h1 { font-family: 'DM Serif Display', serif; font-size: clamp(2.2rem, 5vw, 3.4rem); letter-spacing: -0.02em; }
+    header p { color: var(--muted); margin-top: 4px; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    .search-wrap { width: 100%; max-width: 480px; display: flex; gap: 8px; }
+    .search-wrap input { flex: 1; padding: 12px 16px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+    .search-wrap input::placeholder { color: var(--muted); }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap button { padding: 12px 18px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: var(--accent); color: #000; font-family: 'DM Mono', monospace; font-size: 0.85rem; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+    .search-wrap button:hover { background: #bae6fd; }
+    #btn-geo { display: flex; align-items: center; gap: 8px; background: none; border: 1.5px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.78rem; letter-spacing: 0.06em; padding: 8px 16px; border-radius: 100px; cursor: pointer; transition: color 0.2s, border-color 0.2s; }
+    #btn-geo:hover { color: var(--accent); border-color: var(--accent); }
+    #err { color: var(--danger); font-size: 0.82rem; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); padding: 10px 20px; border-radius: 10px; display: none; max-width: 480px; width: 100%; }
+    #load { display: none; flex-direction: column; align-items: center; gap: 12px; color: var(--muted); font-size: 0.8rem; }
+    .spinner { width: 28px; height: 28px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #wx { width: 100%; max-width: 860px; display: none; flex-direction: column; gap: 16px; }
+    .main-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 24px; padding: 32px 36px; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
+    .city { font-family: 'DM Serif Display', serif; font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.02em; }
+    .country { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 4px; }
+    .desc { margin-top: 10px; color: var(--accent); font-size: 0.85rem; text-transform: capitalize; }
+    .temp-big { font-family: 'DM Serif Display', serif; font-size: clamp(3rem, 7vw, 5rem); line-height: 1; text-align: right; letter-spacing: -0.03em; }
+    .feels { text-align: right; color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
+    .weather-icon-main { font-size: 3.5rem; display: block; text-align: right; margin-bottom: 6px; }
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .stat-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .stat-label { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    .stat-value { font-family: 'DM Serif Display', serif; font-size: 1.5rem; letter-spacing: -0.01em; }
+    .stat-unit { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+    .forecast-title { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); padding-left: 4px; }
+    .forecast-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .forecast-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.2s; }
+    .forecast-card:hover { border-color: var(--accent); }
+    .fc-day { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .fc-icon { font-size: 1.5rem; }
+    .fc-max { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+    .fc-min { font-size: 0.72rem; color: var(--muted); }
+
+    /* ── Sección comparación ── */
+    #compare-section { width: 100%; max-width: 860px; display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+    .section-title { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+    .cmp-input-row { display: flex; gap: 8px; }
+    .cmp-input-row input { flex: 1; padding: 10px 14px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.88rem; outline: none; transition: border-color 0.2s; }
+    .cmp-input-row input::placeholder { color: var(--muted); }
+    .cmp-input-row input:focus { border-color: var(--accent); }
+    .cmp-input-row button { padding: 10px 16px; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.82rem; cursor: pointer; transition: border-color 0.2s; white-space: nowrap; }
+    .cmp-input-row button:hover { border-color: var(--accent); color: var(--accent); }
+    #cmp-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 16px; }
+    .city-tag { display: flex; align-items: center; gap: 6px; background: rgba(125,211,252,0.1); border: 1px solid rgba(125,211,252,0.25); color: var(--accent); padding: 5px 10px; border-radius: 100px; font-size: 0.78rem; }
+    .tag-remove { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; opacity: 0.7; }
+    .tag-remove:hover { opacity: 1; }
+    #btn-compare { align-self: flex-start; padding: 12px 24px; border-radius: var(--radius); border: 1.5px solid var(--accent); background: var(--accent); color: #000; font-family: 'DM Mono', monospace; font-size: 0.85rem; cursor: pointer; transition: background 0.2s; }
+    #btn-compare:hover { background: #bae6fd; }
+    #cmp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .cmp-loading { color: var(--muted); font-size: 0.82rem; }
+    .cmp-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: border-color 0.2s; }
+    .cmp-card:hover { border-color: var(--accent); }
+    .cmp-card.cmp-error { border-color: rgba(248,113,113,0.3); }
+    .cmp-err-msg { color: var(--danger); font-size: 0.8rem; }
+    .cmp-header { display: flex; align-items: center; gap: 12px; }
+    .cmp-icon { font-size: 2rem; }
+    .cmp-city { font-family: 'DM Serif Display', serif; font-size: 1.2rem; letter-spacing: -0.01em; }
+    .cmp-country { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+    .cmp-temp { font-family: 'DM Serif Display', serif; font-size: 2.4rem; letter-spacing: -0.03em; }
+    .cmp-desc { color: var(--accent); font-size: 0.8rem; text-transform: capitalize; }
+    .cmp-stats { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .cmp-stat { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .cmp-forecast { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 10px; overflow-x: auto; }
+    .cmp-fc-item { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; min-width: 36px; }
+    .cmp-fc-day { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .cmp-fc-icon { font-size: 1rem; }
+    .cmp-fc-temps { font-size: 0.68rem; color: var(--text); text-align: center; white-space: nowrap; }
+
+    .divider { width: 100%; max-width: 860px; border: none; border-top: 1px solid var(--border); }
+    .attribution { color: var(--muted); font-size: 0.68rem; opacity: 0.5; letter-spacing: 0.08em; }
+
+    @media (max-width: 600px) {
+      .main-card { grid-template-columns: 1fr; }
+      .temp-big, .feels, .weather-icon-main { text-align: left; }
+      .forecast-row { grid-template-columns: repeat(3, 1fr); }
+      .forecast-row .forecast-card:nth-child(n+4) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Skies</h1>
+      <p>Clima en tiempo real</p>
+    </header>
+
+    <div class="search-wrap">
+      <input type="text" id="inp" placeholder="Busca una ciudad…" />
+      <button id="btn-search">Buscar</button>
+    </div>
+
+    <button id="btn-geo">
+      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7z"/>
+        <circle cx="12" cy="9" r="2.5"/>
+      </svg>
+      Usar mi ubicación
+    </button>
+
+    <div id="err"></div>
+    <div id="load"><div class="spinner"></div><span>Consultando el cielo…</span></div>
+    <div id="wx"></div>
+
+    <hr class="divider" />
+
+    <!-- Sección comparación de ciudades -->
+    <section id="compare-section">
+      <p class="section-title">Comparar ciudades</p>
+      <div class="cmp-input-row">
+        <input type="text" id="cmp-inp" placeholder="Agrega una ciudad…" />
+        <button id="btn-add-city">+ Agregar</button>
+      </div>
+      <div id="cmp-list"></div>
+      <button id="btn-compare">Comparar</button>
+      <div id="cmp-cards"></div>
+    </section>
+
+    <p class="attribution">Datos: Open-Meteo &amp; Open-Meteo Geocoding — Sin API key</p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
